@@ -43,8 +43,13 @@ _Details to be added as features land._
 ## Running the tests
 
 ```sh
-make test
+make db-up       # tests that touch the database need PostgreSQL
+make test        # all tests
+make test-unit   # only tests that need no database (database tests are skipped)
 ```
+
+Database tests read `DATABASE_URL` and each run in a throwaway schema, so they never touch
+your data.
 
 ## Assumptions
 

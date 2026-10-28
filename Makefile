@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://catalog:catalog@localhost:5432/catalog?sslmode=disable
 export DATABASE_URL
 
-.PHONY: db-up db-down run supplier test vet build
+.PHONY: db-up db-down run supplier test test-unit vet build
 
 db-up: ## Start PostgreSQL in Docker
 	docker compose up -d --wait postgres
@@ -15,8 +15,11 @@ run: ## Run the staff application
 supplier: ## Run the fictional supplier
 	go run ./cmd/fakesupplier
 
-test: ## Run all tests
-	go test ./...
+test: ## Run all tests (needs PostgreSQL: make db-up)
+	go test -race -count=1 ./...
+
+test-unit: ## Run tests that need no database
+	DATABASE_URL= go test -race -count=1 ./...
 
 vet: ## Static checks
 	go vet ./...
