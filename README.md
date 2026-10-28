@@ -119,6 +119,7 @@ curl localhost:9090/admin/state
 ```sh
 make db-up       # tests that touch the database need PostgreSQL
 make test        # all tests, with the race detector
+make e2e         # only the end-to-end scenarios, with details
 make test-unit   # only tests that need no database (database tests are skipped)
 ```
 
@@ -133,6 +134,28 @@ data.
 | `supplier` | retries, giving up, no retry on 4xx, cancellation; generated feeds really contain every kind of mess |
 | `app` | Ctrl+C mid-update → interrupted → resume after restart; crash recovery at start-up |
 | `httpapi`, `web` | endpoints, status codes, filters; the page and assets are served |
+
+### End-to-end scenarios (`make e2e`)
+
+These drive the whole system over HTTP: the real application and database, with the fictional
+supplier misbehaving. Each scenario ends by comparing the catalog and the open problems with
+`fake.ExpectedFor`, which works out the correct result from the feed alone (for each product, the
+valid change with the highest version wins).
+
+| Scenario | Rules |
+|---|---|
+| Demo story: outage after batch 4, start refused, resume, exact counts, each batch logged once | R1–R6 |
+| Re-import a generated feed twice: nothing applied, catalog identical | R1 |
+| 6 generated feeds (25–46 batches, up to 387 messages, late, repeated, replayed, shuffled, broken records), supplier failing 25% of requests, page sizes 1–50 | R1–R5 |
+| Application stopped and restarted 20+ times in the middle of one update | R4–R6 |
+| Real compiled program killed with `kill -9` several times mid-update | R4–R6 |
+| Supplier keeps publishing while being read: refill limit holds, later updates catch up | D5 |
+| 10 simultaneous "Start update" requests: exactly one starts | D6 |
+| Supplier down from the start and still down at resume: catalog untouched, one problem | R4, D8 |
+| Gaps in batch numbers, empty batches, a product only ever seen as a withdrawal | D2, D3 |
+
+The suite is checked against itself: with the version rule deliberately broken (older versions
+allowed to overwrite newer ones), 9 of the 10 scenarios fail.
 
 ## Demo script (3–5 minutes)
 

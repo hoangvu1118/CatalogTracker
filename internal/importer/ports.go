@@ -74,7 +74,8 @@ type UpdateStore interface {
 	// MarkRunningAsInterrupted turns every running update into an
 	// interrupted one and returns their ids. Called once at start-up.
 	MarkRunningAsInterrupted(ctx context.Context) ([]int64, error)
-	// AddProblem records a problem outside a batch (e.g. supplier outage).
+	// AddProblem records a problem outside a batch (e.g. supplier outage),
+	// unless a problem of the same kind is already open for the update.
 	AddProblem(ctx context.Context, p Problem) error
 	// ResolveProblems marks all open problems of one kind for an update resolved.
 	ResolveProblems(ctx context.Context, updateID int64, kind ProblemKind) error

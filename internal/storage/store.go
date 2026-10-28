@@ -98,8 +98,19 @@ func (s *Store) MarkRunningAsInterrupted(ctx context.Context) ([]int64, error) {
 	return pgx.CollectRows(rows, pgx.RowTo[int64])
 }
 
+// AddProblem records a problem unless the same kind is already open for
+// the update (a supplier that fails at every resume is one problem).
 func (s *Store) AddProblem(ctx context.Context, p importer.Problem) error {
-	return insertProblem(ctx, s.pool, p)
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO problems (update_id, batch_seq, sku, version, kind, message, created_at)
+		SELECT $1, $2, $3, $4, $5, $6, $7
+		WHERE NOT EXISTS (
+			SELECT 1 FROM problems WHERE update_id = $1 AND kind = $5 AND resolved_at IS NULL)`,
+		p.UpdateID, p.BatchSeq, p.SKU, p.Version, p.Kind, p.Message, p.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("record problem: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) ResolveProblems(ctx context.Context, updateID int64, kind importer.ProblemKind) error {
@@ -127,22 +138,6 @@ func (s *Store) InBatchTx(ctx context.Context, fn func(tx importer.BatchTx) erro
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit batch: %w", err)
-	}
-	return nil
-}
-
-// execer is satisfied by both the pool and a transaction.
-type execer interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
-func insertProblem(ctx context.Context, db execer, p importer.Problem) error {
-	_, err := db.Exec(ctx, `
-		INSERT INTO problems (update_id, batch_seq, sku, version, kind, message, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		p.UpdateID, p.BatchSeq, p.SKU, p.Version, p.Kind, p.Message, p.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("record problem: %w", err)
 	}
 	return nil
 }

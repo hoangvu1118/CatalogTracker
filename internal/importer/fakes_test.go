@@ -190,6 +190,11 @@ func (m *memStore) MarkRunningAsInterrupted(context.Context) ([]int64, error) {
 func (m *memStore) AddProblem(_ context.Context, p Problem) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	for _, open := range m.state.problems {
+		if open.ResolvedAt == nil && open.UpdateID == p.UpdateID && open.Kind == p.Kind {
+			return nil
+		}
+	}
 	m.state.problems = append(m.state.problems, p)
 	return nil
 }

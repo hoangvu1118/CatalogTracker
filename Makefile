@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://catalog:catalog@localhost:5432/catalog?sslmode=disable
 export DATABASE_URL
 
-.PHONY: db-up db-down db-reset run supplier supplier-big test test-unit vet build
+.PHONY: db-up db-down db-reset run supplier supplier-big test e2e test-unit vet build
 
 db-up: ## Start PostgreSQL in Docker
 	docker compose up -d --wait postgres
@@ -24,6 +24,9 @@ supplier-big: ## Run the fictional supplier with a large generated, messy feed
 
 test: ## Run all tests (needs PostgreSQL: make db-up)
 	go test -race -count=1 ./...
+
+e2e: ## Run only the end-to-end scenarios, with details (needs PostgreSQL)
+	go test -count=1 -v ./e2e/
 
 test-unit: ## Run tests that need no database
 	DATABASE_URL= go test -race -count=1 ./...
