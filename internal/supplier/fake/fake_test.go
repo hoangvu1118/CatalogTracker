@@ -149,8 +149,12 @@ func TestServerPublishGrowAndOutages(t *testing.T) {
 	if code := get(t, s, "GET", "/feed/batches?after=1&limit=2", nil); code != http.StatusOK {
 		t.Errorf("batches 2–3 before the outage point: status %d", code)
 	}
-	if code := get(t, s, "GET", "/feed/batches?after=2&limit=5", nil); code != http.StatusServiceUnavailable {
-		t.Errorf("reaching batch 4: status %d, want 503", code)
+	var partial supplier.BatchesResponse
+	if code := get(t, s, "GET", "/feed/batches?after=2&limit=5", &partial); code != http.StatusOK || len(partial.Batches) != 1 || partial.Batches[0].Seq != 3 {
+		t.Errorf("page crossing the outage point: status %d, %d batches; want only batch 3", code, len(partial.Batches))
+	}
+	if code := get(t, s, "GET", "/feed/batches?after=3&limit=5", nil); code != http.StatusServiceUnavailable {
+		t.Errorf("starting at batch 4: status %d, want 503", code)
 	}
 
 	get(t, s, "POST", "/admin/outage?on=true", nil)

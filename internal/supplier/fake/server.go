@@ -32,7 +32,7 @@ type Options struct {
 //	GET  /feed/batches?after=N&limit=M
 //	POST /admin/publish?count=N     make N more batches visible (no count: all)
 //	POST /admin/outage?on=true      every feed request answers 503
-//	POST /admin/outage?from=SEQ     requests reaching batch SEQ or later answer 503
+//	POST /admin/outage?from=SEQ     batches before SEQ are still delivered; asking for SEQ or later answers 503
 //	POST /admin/outage?on=false     back to normal
 //	GET  /admin/state
 type Server struct {
@@ -150,6 +150,9 @@ func (s *Server) batches(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if s.failFrom > 0 && b.Seq >= s.failFrom {
+			if len(out) > 0 {
+				break // deliver what came before the outage point
+			}
 			http.Error(w, "supplier unavailable", http.StatusServiceUnavailable)
 			return
 		}

@@ -17,6 +17,7 @@ import (
 	"github.com/hoangvu1118/catalogtracker/internal/importer"
 	"github.com/hoangvu1118/catalogtracker/internal/storage"
 	"github.com/hoangvu1118/catalogtracker/internal/supplier"
+	"github.com/hoangvu1118/catalogtracker/internal/web"
 )
 
 // Config is everything the application needs to start.
@@ -70,6 +71,7 @@ func (a *App) Handler() http.Handler {
 		w.Write([]byte("ok"))
 	})
 	httpapi.New(a.Service, a.Store).Register(mux)
+	web.Register(mux)
 	return mux
 }
 

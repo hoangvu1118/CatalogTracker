@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catalog Updates</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Catalog updates</h1>
+      <p class="sub">Supplier: Acme Wholesale (fictional)</p>
+    </div>
+    <div class="actions">
+      <button id="start" class="primary">Start update</button>
+      <button id="reimport" title="Read the whole supplier feed again. Safe: nothing is duplicated.">Re-import everything</button>
+    </div>
+  </header>
+
+  <p id="message" class="message" hidden></p>
+
+  <main>
+    <section class="card" id="current">
+      <h2>Latest update</h2>
+      <div id="current-body" class="muted">No updates yet. Press “Start update”.</div>
+    </section>
+
+    <section class="card attention">
+      <h2>Needs attention <span id="open-count" class="pill">0</span></h2>
+      <ul id="open-problems" class="problems"><li class="muted">Nothing needs attention.</li></ul>
+    </section>
+
+    <section class="card wide">
+      <h2>Update history</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>Status</th><th>Batches</th><th>Changes</th><th>Problems</th><th>Started</th><th>Finished</th></tr></thead>
+          <tbody id="history"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide" id="detail" hidden>
+      <h2 class="plain">What changed in update <span id="detail-id"></span></h2>
+      <div class="filters" id="outcome-filters"></div>
+      <div class="scroll tall">
+        <table>
+          <thead><tr><th>Batch</th><th>SKU</th><th>Version</th><th>Outcome</th><th>Detail</th></tr></thead>
+          <tbody id="changes"></tbody>
+        </table>
+      </div>
+      <h3>Problems found by this update</h3>
+      <ul id="update-problems" class="problems"></ul>
+    </section>
+
+    <section class="card wide">
+      <h2>Catalog <span id="product-count" class="pill">0</span></h2>
+      <div class="filters" id="product-filters"></div>
+      <div class="scroll tall">
+        <table>
+          <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Status</th><th>Version</th></tr></thead>
+          <tbody id="products"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
