@@ -11,13 +11,40 @@ whether it completed, what changed, and which problems need attention.
 2. [Decisions: how we solve each problem](docs/02-decisions.md)
 3. [Implementation plan](docs/03-plan.md)
 
+## Requirements
+
+- Go 1.24+
+- Docker (for PostgreSQL)
+
+## Project layout
+
+```
+cmd/catalog/        staff application (wires everything together)
+cmd/fakesupplier/   fictional supplier used for the demo
+internal/catalog/   products and the version rule
+internal/importer/  the update process (windows, bookmark, status)
+internal/supplier/  supplier HTTP client
+internal/storage/   PostgreSQL storage
+internal/httpapi/   JSON API
+internal/web/       staff page
+docs/               problem, decisions, plan
+```
+
 ## Running the application
 
-_To be added._
+```sh
+make db-up      # start PostgreSQL in Docker
+make supplier   # terminal 1: fictional supplier
+make run        # terminal 2: staff application
+```
+
+_Details to be added as features land._
 
 ## Running the tests
 
-_To be added._
+```sh
+make test
+```
 
 ## Assumptions
 
