@@ -1,13 +1,17 @@
 DATABASE_URL ?= postgres://catalog:catalog@localhost:5432/catalog?sslmode=disable
 export DATABASE_URL
 
-.PHONY: db-up db-down run supplier supplier-big test test-unit vet build
+.PHONY: db-up db-down db-reset run supplier supplier-big test test-unit vet build
 
 db-up: ## Start PostgreSQL in Docker
 	docker compose up -d --wait postgres
 
 db-down: ## Stop PostgreSQL
 	docker compose down
+
+db-reset: ## Delete all data and start an empty PostgreSQL
+	docker compose down -v
+	docker compose up -d --wait postgres
 
 run: ## Run the staff application
 	go run ./cmd/catalog

@@ -55,7 +55,7 @@ A withdrawn product stays in the database with status `withdrawn` and its versio
 
 Two reasons:
 
-1. **Memory of the latest version.** If we deleted it, a late, older change would find "nothing"
+1. **It remembers the latest version.** If we deleted it, a late, older change would find "nothing"
    and re-create it, breaking R3.
 2. **It can come back.** A later, higher version can make it active and sellable again.
 
@@ -81,6 +81,9 @@ in batch 3, **none** of batch 3 is kept, and the bookmark still points to batch 
 1. **All-or-nothing saving**: products and bookmark always agree.
 2. **The version rule (D2)**: even if a batch is processed again, every change in it is ignored as
    a duplicate. Repeating work is harmless.
+
+The database adds two more checks underneath: the product write itself refuses to replace a
+newer version, and the bookmark can only move forward.
 
 ---
 
@@ -113,6 +116,8 @@ update ends**, even with a supplier that keeps changing.
 Details:
 
 - The **bookmark moves per batch, not per window.** A crash during b4 resumes at b4, not b1.
+- Window 2 is read from the supplier in **pages** (5 batches per request by default), so a long
+  window never has to be held in memory at once.
 - **Window 2 is not saved.** On resume we ask the supplier again for batches after the bookmark,
   and Window 2 rebuilds itself.
 
@@ -130,8 +135,12 @@ Details:
 - **Completed** is set **only** at the very end, after the last batch is saved. Never earlier.
 - **Interrupted** is detected on start-up: any update still marked `Running` while nothing is
   actually running must have been cut off by a crash or shutdown.
-- **Only one update runs at a time.** Pressing Update while one is running is refused.
+- **Only one unfinished update at a time.** Pressing Update while an update is running, failed or
+  interrupted is refused, and staff are pointed to the update to resume. The database enforces
+  this too (a unique index), so even two copies of the application cannot both start one.
 - **Resume** continues the same update from its bookmark.
+- **Re-import everything** starts an update from bookmark 0. It is safe because of D2: every
+  change already stored comes back as `duplicate` or `stale`.
 
 ### What staff see
 
@@ -166,8 +175,16 @@ skipped and reported.
 
 | Problem | Example | Effect |
 |---|---|---|
-| Invalid record | missing name, missing SKU, negative price | record skipped, update continues |
+| Invalid record | missing name, missing SKU, price not positive, bad currency, unknown operation | record skipped, update continues |
 | Supplier unavailable | timeout, server error after retries | update becomes **Failed** (resumable) |
+
+Problems resolve themselves when they no longer need attention:
+
+- An invalid record is resolved when a **newer valid version** of the same product is applied.
+- A supplier-unavailable problem is resolved when its update **completes** after a resume.
+- An invalid record that is **not newer** than the stored version is not reported at all: it would
+  be ignored anyway.
+- The same broken record delivered twice raises **one** problem, not two.
 
 ---
 
@@ -175,6 +192,7 @@ skipped and reported.
 
 - The supplier gives each product a **version that only grows**.
 - The supplier keeps its changes available, so we can ask again from our bookmark.
+- The application talks to one supplier feed; the bookmark belongs to that feed.
 - The feed contains **changes**, not a full snapshot: a product missing from a batch is **not**
   withdrawn; withdrawal is always explicit.
 - One shop, one running copy of the application, no login.

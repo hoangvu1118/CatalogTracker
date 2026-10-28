@@ -1,6 +1,6 @@
 # 3. Implementation plan
 
-Built from the decisions in [02-decisions.md](02-decisions.md).
+Built from the decisions in [02-decisions.md](02-decisions.md). All milestones are done.
 
 ## Technology
 
@@ -8,59 +8,64 @@ Built from the decisions in [02-decisions.md](02-decisions.md).
 |---|---|
 | **Go** | required by the assignment |
 | **PostgreSQL** (via Docker) | real transactions make "all or nothing" per batch (D4) simple and reliable |
-| `pgx` driver | the standard Go driver for PostgreSQL |
-| Go standard library for the rest | `net/http` (API), `html/template` (web page), `testing` |
+| `pgx` driver | the standard Go driver for PostgreSQL (the only external dependency) |
+| Go standard library for the rest | `net/http` (API), `embed` (web page), `log/slog`, `testing` |
 | **HTTP API + simple web page** | staff start updates and see status, changes and problems |
 
 ## Structure (SOLID)
 
 ```
 cmd/
-  catalog/        the application: wires everything together and starts the web server
-  fakesupplier/   the fictional supplier, which can misbehave on purpose
+  catalog/          the application: reads flags, starts internal/app
+  fakesupplier/     the fictional supplier, which can misbehave on purpose
 internal/
-  catalog/        products and the version rule (D2) — no database, no network
-  importer/       the update process: windows, bookmark, status (D4–D6)
-  supplier/       talks to the supplier over HTTP
-  storage/        saves to PostgreSQL
-  httpapi/        JSON endpoints
-  web/            the staff page
-docs/             these documents
+  catalog/          products and the version rule (D2, D3): no database, no network
+  importer/         the update process: windows, bookmark, status (D4–D6), and the
+                    interfaces it needs (Feed, Store)
+  supplier/         HTTP client for the supplier (implements importer.Feed)
+  supplier/fake/    the fictional supplier: server, story feed loader, generator, expected results
+  storage/          PostgreSQL (implements importer.Store), migrations, read queries
+  httpapi/          JSON endpoints
+  web/              the staff page (embedded HTML/CSS/JS)
+  app/              wires everything together; start-up recovery; graceful shutdown
+  testdb/           gives tests a throwaway database schema
+e2e/                end-to-end tests over HTTP with real processes' building blocks
+testdata/feeds/     the hand-written demo story feed
+docs/               these documents
 ```
 
-- **S — single responsibility:** the rule, the process, storage, supplier access and the web layer
+Dependencies point inwards: `catalog` ← `importer` ← `storage`, `supplier`, `httpapi` ← `app`.
+
+- **S, single responsibility:** the rule, the process, storage, supplier access and the web layer
   are separate packages.
-- **O — open/closed:** a different supplier means a new supplier type; the importer does not change.
-- **L — substitution:** test fakes and real implementations are interchangeable.
-- **I — small interfaces:** each interface has only the methods its user needs.
-- **D — dependency inversion:** the importer depends on interfaces; only `cmd/catalog` knows
-  about PostgreSQL and HTTP.
+- **O, open/closed:** a different supplier means a new type implementing `importer.Feed`; the
+  importer does not change.
+- **L, substitution:** the in-memory test store and the PostgreSQL store pass the same importer
+  tests; the fake and real suppliers are interchangeable.
+- **I, small interfaces:** `Feed` has two methods; the API asks for an `Updater` and a `Reader`,
+  not the whole store.
+- **D, dependency inversion:** the importer defines the interfaces it needs and depends only on
+  them; only `internal/app` knows about PostgreSQL and HTTP.
 
 ## Milestones (one commit each)
 
-| # | Commit | Delivers |
-|---|---|---|
-| 0 | `docs: requirement clarification` | these documents |
-| 1 | `chore: project skeleton` | Go module, folders, Makefile, Docker Compose for PostgreSQL |
-| 2 | `feat(catalog): product model and version rule` | D2, D3, with table tests |
-| 3 | `feat(importer): update status and interfaces` | D6 |
-| 4 | `feat(importer): two-window batch loop` | D5, tested with in-memory fakes |
-| 5 | `feat(storage): database schema` | tables for products, updates, changes, problems |
-| 6 | `feat(storage): save each batch in one transaction` | D4 |
-| 7 | `test(storage): crash and repeat tests` | R1, R4, R5 against a real database |
-| 8 | `feat(supplier): fictional supplier and client` | duplicates, wrong order, outages on demand |
-| 9 | `feat(app): start-up recovery and shutdown` | Interrupted status (D6) |
-| 10 | `feat(httpapi): JSON endpoints` | start, resume, status, changes, problems, products |
-| 11 | `feat(web): staff page` | start/resume buttons, status, changes, problems, catalog |
-| 12 | `docs: README, demo script, AI usage` | submission |
-
-Every commit builds and passes `go test ./...`.
+| # | Commit | Delivers | Verified by |
+|---|---|---|---|
+| 0 | `docs: requirement clarification` | these documents | review |
+| 1 | `chore: project skeleton` | Go module, folders, Makefile, Docker Compose | build, run |
+| 2 | `feat(catalog): product model and version rule` | D2, D3 | table tests of every D2 row; order-independence test |
+| 3 | `feat(importer): update status and interfaces` | D6 | transition tests |
+| 4 | `feat(importer): two-window batch loop` | D4, D5, D6, D8 | 14 tests with in-memory fakes |
+| 5 | `feat(storage): database schema and migrations` | tables, one-unfinished index | migration tests on PostgreSQL |
+| 6 | `feat(storage): save each batch in one transaction` | D4 in SQL | commit/rollback tests |
+| 7 | `test(storage): crash and repeat tests` | R1, R4, R5, R6 on PostgreSQL | crash mid-batch, repeat imports, outage, hard crash, two instances |
+| 8 | `feat(supplier): fictional supplier, datasets and client` | outages on demand, story and generated feeds | client retry tests, generator tests, curl |
+| 9 | `feat(app): composition root, start-up recovery and shutdown` | Interrupted status | Ctrl+C and hard-crash tests, running the binaries |
+| 10 | `feat(httpapi): JSON endpoints` | start, resume, status, changes, problems, products | handler tests, curl against the story feed |
+| 11 | `feat(web): staff page` | the staff page | page tests, browser screenshots |
+| 12 | `docs: README, code tour, demo script` | submission docs | review |
+| 13 | `test(e2e): end-to-end scenarios` | every rule over HTTP, generated feeds | `make e2e` |
 
 ## Demo scenario (3–5 minute video)
 
-1. Start an update: it completes; the catalog and change log appear.
-2. Run it again: everything is `duplicate`, no new products (R1).
-3. Feed with old and out-of-order changes: they are `stale`; withdrawn stays withdrawn (R2, R3).
-4. Supplier goes down mid-update: **Failed**, catalog intact (R4, R6).
-5. Supplier comes back: **Resume** continues from the bookmark and completes (R5).
-6. Stop the application mid-update, restart: **Interrupted**, then Resume (R5, R6).
+See [the demo script in the README](../README.md#demo-script-35-minutes).
