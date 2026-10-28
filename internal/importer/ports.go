@@ -94,6 +94,8 @@ type BatchTx interface {
 	LockProducts(ctx context.Context, skus []string) (map[string]catalog.Product, error)
 	SaveProduct(ctx context.Context, p catalog.Product) error
 	RecordChange(ctx context.Context, c ChangeRecord) error
+	// RecordProblem records a problem unless the same one (kind, SKU and
+	// version) is already open.
 	RecordProblem(ctx context.Context, p Problem) error
 	// ResolveInvalidChanges resolves open invalid-change problems for a SKU
 	// whose version is not newer than the version just applied.

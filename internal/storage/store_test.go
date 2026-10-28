@@ -181,6 +181,12 @@ func TestProblemsResolve(t *testing.T) {
 	})
 	assertCount(t, s, `SELECT count(*) FROM problems WHERE resolved_at IS NULL`, 2)
 
+	// The same broken record delivered again is not a second problem.
+	s.InBatchTx(ctx, func(tx importer.BatchTx) error {
+		return tx.RecordProblem(ctx, importer.Problem{UpdateID: u.ID, BatchSeq: 2, SKU: "VASE", Version: 5, Kind: importer.ProblemInvalidChange, Message: "bad", CreatedAt: now})
+	})
+	assertCount(t, s, `SELECT count(*) FROM problems WHERE resolved_at IS NULL`, 2)
+
 	if err := s.ResolveProblems(ctx, u.ID, importer.ProblemSupplierUnavailable); err != nil {
 		t.Fatal(err)
 	}

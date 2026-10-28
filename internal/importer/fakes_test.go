@@ -247,6 +247,11 @@ func (t *memTx) RecordChange(_ context.Context, c ChangeRecord) error {
 }
 
 func (t *memTx) RecordProblem(_ context.Context, p Problem) error {
+	for _, open := range t.state.problems {
+		if open.ResolvedAt == nil && open.Kind == p.Kind && open.SKU == p.SKU && open.Version == p.Version {
+			return nil
+		}
+	}
 	t.state.problems = append(t.state.problems, p)
 	return nil
 }

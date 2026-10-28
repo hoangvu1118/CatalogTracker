@@ -78,8 +78,20 @@ func (b *batchTx) RecordChange(ctx context.Context, c importer.ChangeRecord) err
 	return nil
 }
 
+// RecordProblem skips a problem that is already open for the same SKU and
+// version, so a broken record delivered twice needs attention only once.
 func (b *batchTx) RecordProblem(ctx context.Context, p importer.Problem) error {
-	return insertProblem(ctx, b.tx, p)
+	_, err := b.tx.Exec(ctx, `
+		INSERT INTO problems (update_id, batch_seq, sku, version, kind, message, created_at)
+		SELECT $1, $2, $3, $4, $5, $6, $7
+		WHERE NOT EXISTS (
+			SELECT 1 FROM problems
+			WHERE kind = $5 AND sku = $3 AND version = $4 AND resolved_at IS NULL)`,
+		p.UpdateID, p.BatchSeq, p.SKU, p.Version, p.Kind, p.Message, p.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("record problem: %w", err)
+	}
+	return nil
 }
 
 func (b *batchTx) ResolveInvalidChanges(ctx context.Context, sku string, upToVersion int64) error {
