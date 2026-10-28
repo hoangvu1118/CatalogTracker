@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/hoangvu1118/catalogtracker/internal/httpapi"
 	"github.com/hoangvu1118/catalogtracker/internal/importer"
 	"github.com/hoangvu1118/catalogtracker/internal/storage"
 	"github.com/hoangvu1118/catalogtracker/internal/supplier"
@@ -68,6 +69,7 @@ func (a *App) Handler() http.Handler {
 		}
 		w.Write([]byte("ok"))
 	})
+	httpapi.New(a.Service, a.Store).Register(mux)
 	return mux
 }
 
