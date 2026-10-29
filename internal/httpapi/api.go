@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/hoangvu1118/catalogtracker/internal/catalog"
 	"github.com/hoangvu1118/catalogtracker/internal/importer"
@@ -35,12 +36,14 @@ type API struct {
 	updater   Updater
 	reader    Reader
 	windowSrc WindowSource
+	latest    *latestCache
 }
 
 // New builds the API. window is only used to describe the two windows
 // (GET /api/window).
 func New(updater Updater, reader Reader, window WindowSource) *API {
-	return &API{updater: updater, reader: reader, windowSrc: window}
+	return &API{updater: updater, reader: reader, windowSrc: window,
+		latest: newLatestCache(window.Feed, 500*time.Millisecond)}
 }
 
 // Register adds the routes to mux.

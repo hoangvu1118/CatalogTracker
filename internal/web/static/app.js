@@ -370,4 +370,4 @@ $("reimport").addEventListener("click", () => {
 refresh();
 refreshWindow();
 setInterval(refresh, 1000);
-setInterval(refreshWindow, 300);
+setInterval(refreshWindow, 150);

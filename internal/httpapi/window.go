@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/hoangvu1118/catalogtracker/internal/importer"
 )
@@ -81,10 +80,9 @@ func (a *API) window(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Ask the supplier briefly; the page must not hang if it is down.
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
-	if latest, err := a.windowSrc.Feed.Latest(ctx); err != nil {
+	// The supplier's newest batch comes from a cache refreshed in the
+	// background, so this answer shows the database as it is now.
+	if latest, err := a.latest.Get(); err != nil {
 		view.SupplierError = err.Error()
 	} else {
 		view.SupplierLatest = latest
