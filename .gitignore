@@ -2,3 +2,6 @@
 *.test
 *.out
 .env
+
+# Local presentation prep (not part of the project)
+/presentation/
