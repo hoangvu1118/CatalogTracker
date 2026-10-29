@@ -121,7 +121,8 @@ Details:
 - **Window 2 is not saved.** On resume we ask the supplier again for batches after the bookmark,
   and Window 2 rebuilds itself.
 - **Staff can see the windows.** The top of the staff page draws both windows live
-  (`GET /api/window`): the batch being saved is highlighted and leaves Window 2 when it is saved.
+  (`GET /api/window`): batches taken into Window 2 but not downloaded yet are dashed, the current
+  page is solid, the batch being saved is highlighted and leaves Window 2 when it is saved.
 
 ---
 

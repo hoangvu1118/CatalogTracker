@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -366,6 +367,41 @@ func TestBatchDelayPacesAndCanBeInterrupted(t *testing.T) {
 	slow.Shutdown()
 	if got := reload(t, slow, u.ID); got.Status != StatusInterrupted || got.Bookmark != 0 {
 		t.Fatalf("got %+v, want interrupted before any batch was saved", got)
+	}
+}
+
+// observingStore records, each time a batch is saved, how far the service
+// says it has downloaded.
+type observingStore struct {
+	*memStore
+	service  *Service
+	updateID int64
+	seen     []int64
+}
+
+func (o *observingStore) InBatchTx(ctx context.Context, fn func(tx BatchTx) error) error {
+	o.seen = append(o.seen, o.service.Fetched(o.updateID))
+	return o.memStore.InBatchTx(ctx, fn)
+}
+
+// Window 2 is downloaded one page at a time; Fetched shows how far.
+func TestFetchedFollowsThePages(t *testing.T) {
+	feed := newFeed(
+		[]catalog.Change{up("A", 1, 100)}, []catalog.Change{up("B", 1, 100)}, []catalog.Change{up("C", 1, 100)},
+		[]catalog.Change{up("D", 1, 100)}, []catalog.Change{up("E", 1, 100)},
+	)
+	store := &observingStore{memStore: newStore(), updateID: 1}
+	s := newService(feed, store, Config{PageSize: 2, MaxRefills: 3})
+	store.service = s
+
+	u := startAndWait(t, s, false)
+
+	// Pages: [1 2] [3 4] [5]. While saving batch 1 or 2, batches up to 2 are in memory, and so on.
+	if fmt.Sprint(store.seen) != "[2 2 4 4 5]" {
+		t.Errorf("fetched while saving each batch = %v, want [2 2 4 4 5]", store.seen)
+	}
+	if got := s.Fetched(u.ID); got != 0 {
+		t.Errorf("after the update, fetched = %d, want 0 (nothing held in memory)", got)
 	}
 }
 

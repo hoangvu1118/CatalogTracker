@@ -32,16 +32,15 @@ type Reader interface {
 
 // API holds the JSON endpoints.
 type API struct {
-	updater    Updater
-	reader     Reader
-	feed       LatestSource
-	maxRefills int
+	updater   Updater
+	reader    Reader
+	windowSrc WindowSource
 }
 
-// New builds the API. feed and maxRefills are only used to describe the
-// two windows (GET /api/window).
-func New(updater Updater, reader Reader, feed LatestSource, maxRefills int) *API {
-	return &API{updater: updater, reader: reader, feed: feed, maxRefills: maxRefills}
+// New builds the API. window is only used to describe the two windows
+// (GET /api/window).
+func New(updater Updater, reader Reader, window WindowSource) *API {
+	return &API{updater: updater, reader: reader, windowSrc: window}
 }
 
 // Register adds the routes to mux.

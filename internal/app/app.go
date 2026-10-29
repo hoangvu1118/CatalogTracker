@@ -74,7 +74,12 @@ func (a *App) Handler() http.Handler {
 		}
 		w.Write([]byte("ok"))
 	})
-	httpapi.New(a.Service, a.Store, a.latest, a.cfg.Importer.MaxRefills).Register(mux)
+	httpapi.New(a.Service, a.Store, httpapi.WindowSource{
+		Feed:       a.latest,
+		Progress:   a.Service,
+		PageSize:   a.cfg.Importer.PageSize,
+		MaxRefills: a.cfg.Importer.MaxRefills,
+	}).Register(mux)
 	web.Register(mux)
 	return mux
 }

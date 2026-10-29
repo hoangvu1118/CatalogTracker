@@ -21,6 +21,7 @@ type stub struct {
 	started   []bool // from_beginning of each Start call
 	latest    int64  // supplier's newest batch
 	latestErr error
+	fetched   int64 // newest batch downloaded by the running update
 }
 
 func newStub() *stub {
@@ -76,6 +77,10 @@ func (s *stub) LastBookmark(context.Context) (int64, error) {
 
 func (s *stub) Latest(context.Context) (int64, error) {
 	return s.latest, s.latestErr
+}
+
+func (s *stub) Fetched(int64) int64 {
+	return s.fetched
 }
 
 func (s *stub) UnfinishedUpdate(context.Context) (importer.Update, bool, error) {
@@ -135,7 +140,7 @@ func (s *stub) ListProducts(_ context.Context, status catalog.Status) ([]catalog
 func call(t *testing.T, s *stub, method, path, body string, out any) int {
 	t.Helper()
 	mux := http.NewServeMux()
-	New(s, s, s, 3).Register(mux)
+	New(s, s, WindowSource{Feed: s, Progress: s, PageSize: 2, MaxRefills: 3}).Register(mux)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	mux.ServeHTTP(rec, req)
@@ -249,15 +254,24 @@ func TestWindowWhileRunning(t *testing.T) {
 	s := newStub()
 	s.updates[2] = importer.Update{ID: 2, Status: importer.StatusRunning, Bookmark: 3, Target: 8, Refills: 1}
 	s.latest = 11
+	s.fetched = 5
 
 	var w windowJSON
 	call(t, s, "GET", "/api/window", "", &w)
 
-	// Window 2 = batches 4–8 with 4 being saved; Window 1 = batches 9–11.
-	want := windowJSON{UpdateID: 2, Status: "running", Bookmark: 3, Target: 8, Processing: 4,
-		Refills: 1, MaxRefills: 3, SupplierLatest: 11}
+	// Window 2 = batches 4–8: 4–5 downloaded (4 being saved), 6–8 still at
+	// the supplier. Window 1 = batches 9–11.
+	want := windowJSON{UpdateID: 2, Status: "running", Bookmark: 3, Target: 8, Processing: 4, Fetched: 5,
+		PageSize: 2, Refills: 1, MaxRefills: 3, SupplierLatest: 11}
 	if w != want {
 		t.Errorf("got %+v, want %+v", w, want)
+	}
+
+	// Between pages nothing is in memory: nothing is being saved.
+	s.fetched = 3
+	call(t, s, "GET", "/api/window", "", &w)
+	if w.Processing != 0 {
+		t.Errorf("waiting for the next page: processing = %d, want 0", w.Processing)
 	}
 }
 

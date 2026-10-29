@@ -165,8 +165,10 @@ function syncBoxes(el, keys, decorate, leaveClass) {
   const want = new Set(keys);
   for (const node of [...el.children]) {
     if (!node.classList.contains("leaving") && !want.has(node.dataset.key)) {
-      node.classList.remove("processing", "new");
-      node.classList.add("leaving", leaveClass(node.dataset.key));
+      const how = leaveClass(node.dataset.key);
+      node.classList.remove("processing", "pending", "new");
+      node.classList.add("leaving", how);
+      if (how === "saved") node.innerHTML = `#${node.dataset.key}<small>saved ✓</small>`;
       setTimeout(() => node.remove(), 750);
     }
   }
@@ -218,16 +220,21 @@ function renderWindow(w) {
     (node, key) => {
       const seq = Number(key);
       node.classList.toggle("more", key === "more");
+      // Only the current page is downloaded; the rest of Window 2 is
+      // still at the supplier until its page is fetched.
+      const pending = key !== "more" && seq > w.fetched && seq !== stoppedAt;
+      node.classList.toggle("pending", pending);
       node.classList.toggle("processing", seq === w.processing);
       node.classList.toggle("blocked", seq === stoppedAt);
       node.classList.toggle("interrupted", seq === stoppedAt && w.status === "interrupted");
-      const extra = seq === w.processing ? "saving…" : seq === stoppedAt ? "stopped" : "";
+      const extra = seq === w.processing ? "saving…" : seq === stoppedAt ? "stopped" : pending ? "to fetch" : "";
       setBox(node, key, `+${w2.length - MAX_BOXES}`, extra);
     },
     (key) => (Number(key) <= w.bookmark ? "saved" : "gone"));
+  const inMemory = w2.filter((seq) => seq <= w.fetched).length;
   $("w2-info").textContent = unfinished
-    ? `${w2.length} left · refill ${w.refills} of ${w.max_refills}`
-    : "";
+    ? `${w2.length} left · ${inMemory} downloaded (page size ${w.page_size}) · refill ${w.refills} of ${w.max_refills}`
+    : `page size ${w.page_size}`;
 
   // Bookmark
   const bm = $("bookmark");
@@ -258,7 +265,14 @@ function explainWindow(w, w1, w2, stoppedAt) {
   if (w.status === "running") {
     if (w.processing) {
       return [`Saving batch #${w.processing} (all its changes in one transaction). ` +
-        `When it is saved it leaves Window 2 and the bookmark moves to #${w.processing}.`, ""];
+        `When it is saved it leaves Window 2 and the bookmark moves to #${w.processing}. ` +
+        `Batches marked “to fetch” are still at the supplier; they are downloaded ${w.page_size} at a time.`, ""];
+    }
+    if (w2.length) {
+      return [`Downloading the next page: up to ${w.page_size} batches from #${w.bookmark + 1}.`, ""];
+    }
+    if (!w.target) {
+      return [`Filling Window 2: asking the supplier for its newest batch.`, ""];
     }
     return [`Window 2 is empty: looking at Window 1 for batches that arrived meanwhile ` +
       `(refill ${w.refills} of ${w.max_refills} used).`, ""];

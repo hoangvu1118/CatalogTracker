@@ -15,9 +15,10 @@ makes sure that:
 
 ![Batches moving from Window 1 to Window 2 and being saved one by one](docs/screenshots/two-windows.gif)
 
-*The top of the staff page during an update (`make run-demo`): batches wait in Window 1, move into
-Window 2, the one being saved is highlighted, and each saved batch leaves while the bookmark
-moves. Batches #6–#8 arrive during the update and are taken by a refill.*
+*The top of the staff page during an update (`make run-demo`): batches wait in Window 1 and are
+taken into Window 2. Dashed boxes are taken but not downloaded yet: the app downloads them one
+page (here 3 batches) at a time. The batch being saved is highlighted, and each saved batch leaves
+while the bookmark moves. Batches #6–#8 arrive during the update and are taken by a refill.*
 
 ## Documentation
 
@@ -125,7 +126,7 @@ curl localhost:9090/admin/state
 | `GET /api/updates/{id}/problems` | problems found by the update |
 | `GET /api/problems?open=true` | everything that still needs attention |
 | `GET /api/products?status=withdrawn` | the catalog |
-| `GET /api/window` | the two windows right now: bookmark, end of Window 2, batch being saved, supplier's newest batch |
+| `GET /api/window` | the two windows right now: bookmark, end of Window 2, how much of it is downloaded, batch being saved, supplier's newest batch |
 
 ## Running the tests
 

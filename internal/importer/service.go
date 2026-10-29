@@ -39,6 +39,12 @@ type Service struct {
 	runCtx  context.Context
 	stopAll context.CancelFunc
 	wg      sync.WaitGroup
+
+	// fetched remembers, per running update, the newest batch downloaded
+	// into memory (the current page). It is only for showing progress and
+	// is lost on a crash, like the page itself.
+	fetchedMu sync.Mutex
+	fetched   map[int64]int64
 }
 
 func NewService(feed Feed, store Store, cfg Config, log *slog.Logger) *Service {
@@ -57,6 +63,7 @@ func NewService(feed Feed, store Store, cfg Config, log *slog.Logger) *Service {
 		now:     time.Now,
 		runCtx:  ctx,
 		stopAll: cancel,
+		fetched: map[int64]int64{},
 	}
 }
 
@@ -160,6 +167,7 @@ func (s *Service) run(ctx context.Context, id int64) error {
 		return err
 	}
 	s.log.Info("update running", "update", id, "bookmark", u.Bookmark)
+	defer s.setFetched(id, 0)
 
 	// A resumed update has filled its window before; refills keep counting.
 	filled := u.Target > 0
@@ -213,6 +221,11 @@ func (s *Service) processWindow(ctx context.Context, u *Update) error {
 		}
 
 		inWindow := 0
+		for _, b := range batches {
+			if b.Seq > u.Bookmark && b.Seq <= u.Target {
+				s.setFetched(u.ID, b.Seq)
+			}
+		}
 		for _, b := range batches {
 			if b.Seq <= u.Bookmark || b.Seq > u.Target {
 				continue
@@ -291,6 +304,24 @@ func (s *Service) stop(ctx context.Context, u *Update, cause error) error {
 		return fmt.Errorf("%v (and saving status failed: %w)", cause, err)
 	}
 	return cause
+}
+
+// Fetched returns the newest batch of the update's Window 2 that has been
+// downloaded into memory, or 0 if none (or the update is not running here).
+func (s *Service) Fetched(updateID int64) int64 {
+	s.fetchedMu.Lock()
+	defer s.fetchedMu.Unlock()
+	return s.fetched[updateID]
+}
+
+func (s *Service) setFetched(updateID, seq int64) {
+	s.fetchedMu.Lock()
+	defer s.fetchedMu.Unlock()
+	if seq == 0 {
+		delete(s.fetched, updateID)
+		return
+	}
+	s.fetched[updateID] = max(s.fetched[updateID], seq)
 }
 
 // pause waits for d, or returns early if ctx is cancelled.

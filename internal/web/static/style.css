@@ -67,6 +67,7 @@ tbody tr.clickable:hover, tbody tr.selected { background: var(--gray-bg); }
   transition: background .3s, border-color .3s, transform .3s; }
 .box small { font-size: 9px; font-weight: 500; line-height: 1; }
 .box.new { animation: box-in .45s ease-out; }
+.box.pending { border-style: dashed; border-color: var(--muted); background: transparent; color: var(--muted); }
 .box.processing { background: var(--info-bg); border: 2px solid var(--accent); color: var(--info); transform: scale(1.12); animation: pulse 1s ease-in-out infinite; z-index: 1; }
 .box.blocked { background: var(--bad-bg); border: 2px solid var(--bad); color: var(--bad); }
 .box.blocked.interrupted { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
