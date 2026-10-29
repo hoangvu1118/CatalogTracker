@@ -264,7 +264,13 @@ function explainWindow(w, w1, w2, stoppedAt) {
       `(refill ${w.refills} of ${w.max_refills} used).`, ""];
   }
   if (w.supplier_error) {
-    return [`Cannot reach the supplier right now, so Window 1 is unknown. The catalog is unchanged.`, "warn"];
+    const hint = /refused|no such host|dial/i.test(w.supplier_error)
+      ? " Is the fictional supplier running (make supplier, from the project folder)?"
+      : /503|unavailable/i.test(w.supplier_error)
+        ? " The supplier answers but is unavailable (an outage may be switched on)."
+        : "";
+    return [`Cannot reach the supplier, so Window 1 is unknown. The catalog is unchanged.${hint} ` +
+      `Details: ${w.supplier_error}`, "warn"];
   }
   if (w1.length === 0) {
     return [w.bookmark
