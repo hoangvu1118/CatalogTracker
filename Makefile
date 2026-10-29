@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://catalog:catalog@localhost:5432/catalog?sslmode=disable
 export DATABASE_URL
 
-.PHONY: db-up db-down db-reset run supplier supplier-big test e2e test-unit vet build
+.PHONY: db-up db-down db-reset run run-demo supplier supplier-big test e2e test-unit vet build
 
 db-up: ## Start PostgreSQL in Docker
 	docker compose up -d --wait postgres
@@ -16,8 +16,11 @@ db-reset: ## Delete all data and start an empty PostgreSQL
 run: ## Run the staff application
 	go run ./cmd/catalog
 
-supplier: ## Run the fictional supplier with the demo story feed (slowed down to watch)
-	go run ./cmd/fakesupplier -delay 700ms
+run-demo: ## Run the staff application slowed down, to watch batches move through the windows
+	go run ./cmd/catalog -batch-delay 900ms -page-size 3
+
+supplier: ## Run the fictional supplier with the demo story feed
+	go run ./cmd/fakesupplier -delay 200ms
 
 supplier-big: ## Run the fictional supplier with a large generated, messy feed
 	go run ./cmd/fakesupplier -generate -seed 42 -delay 150ms

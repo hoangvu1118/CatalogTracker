@@ -21,6 +21,33 @@
   <p id="message" class="message" hidden></p>
 
   <main>
+    <section class="card wide windows">
+      <h2>How an update reads the supplier</h2>
+      <div class="win-row">
+        <div class="win">
+          <div class="win-head"><strong>Window 1</strong><span>waiting at the supplier</span><span id="w1-info" class="win-info"></span></div>
+          <div class="boxes" id="w1-boxes"></div>
+        </div>
+        <div class="win-arrow" aria-hidden="true">→</div>
+        <div class="win w2">
+          <div class="win-head"><strong>Window 2</strong><span>being saved, one by one</span><span id="w2-info" class="win-info"></span></div>
+          <div class="boxes" id="w2-boxes"></div>
+        </div>
+        <div class="win-arrow" aria-hidden="true">→</div>
+        <div class="win saved-win">
+          <div class="win-head"><strong>Saved</strong><span>bookmark</span></div>
+          <div class="bookmark" id="bookmark">—</div>
+        </div>
+      </div>
+      <p id="w-explain" class="explain"></p>
+      <div class="legend">
+        <span><i class="box mini"></i> batch</span>
+        <span><i class="box mini processing"></i> being saved now</span>
+        <span><i class="box mini blocked"></i> stopped here (resume continues from it)</span>
+        <span><i class="box mini saved-demo"></i> saved: leaves the window, bookmark moves</span>
+      </div>
+    </section>
+
     <section class="card" id="current">
       <h2>Latest update</h2>
       <div id="current-body" class="muted">No updates yet. Press “Start update”.</div>

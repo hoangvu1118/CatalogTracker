@@ -17,7 +17,8 @@ A guide for reading the code in order, and for making changes without help.
 | 9 | `internal/storage/migrations/001_init.sql` | The tables, and the index that allows only one unfinished update. |
 | 10 | `internal/app/app.go` | How everything is connected; start-up recovery; shutdown order. |
 | 11 | `internal/httpapi/api.go` | The endpoints. |
-| 12 | `internal/web/static/app.js` | The page: fetch, render, poll. |
+| 12 | `internal/httpapi/window.go` | `GET /api/window`: where the two windows are right now. |
+| 13 | `internal/web/static/app.js` | The page: fetch, render, poll. `renderWindow` and `syncBoxes` draw and animate the two windows. |
 
 ## Go basics used in this code
 

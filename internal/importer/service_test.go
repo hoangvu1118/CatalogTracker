@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/hoangvu1118/catalogtracker/internal/catalog"
 )
@@ -343,6 +344,29 @@ func TestInvalidChangesBecomeProblems(t *testing.T) {
 		t.Fatalf("open problems = %+v, want none", open)
 	}
 	wantProduct(t, store, "VASE", catalog.StatusActive, 3, 2700)
+}
+
+// The demo pacing slows updates down but can still be interrupted.
+func TestBatchDelayPacesAndCanBeInterrupted(t *testing.T) {
+	store := newStore()
+	s := newService(basicFeed(), store, Config{PageSize: 5, MaxRefills: 3, BatchDelay: 30 * time.Millisecond})
+
+	begin := time.Now()
+	u := startAndWait(t, s, false)
+	if u.Status != StatusCompleted || time.Since(begin) < 90*time.Millisecond {
+		t.Fatalf("got %+v after %v, want completed after at least 3 pauses", u, time.Since(begin))
+	}
+
+	slow := newService(basicFeed(), newStore(), Config{PageSize: 5, MaxRefills: 3, BatchDelay: time.Hour})
+	u, err := slow.Start(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond) // pausing before batch 1
+	slow.Shutdown()
+	if got := reload(t, slow, u.ID); got.Status != StatusInterrupted || got.Bookmark != 0 {
+		t.Fatalf("got %+v, want interrupted before any batch was saved", got)
+	}
 }
 
 func TestResumeRules(t *testing.T) {

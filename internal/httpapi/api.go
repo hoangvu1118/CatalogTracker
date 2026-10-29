@@ -27,16 +27,21 @@ type Reader interface {
 	ListChanges(ctx context.Context, updateID int64, outcome catalog.Outcome, limit int) ([]importer.ChangeRecord, error)
 	ListProblems(ctx context.Context, updateID int64, openOnly bool) ([]importer.Problem, error)
 	ListProducts(ctx context.Context, status catalog.Status) ([]catalog.Product, error)
+	LastBookmark(ctx context.Context) (int64, error)
 }
 
 // API holds the JSON endpoints.
 type API struct {
-	updater Updater
-	reader  Reader
+	updater    Updater
+	reader     Reader
+	feed       LatestSource
+	maxRefills int
 }
 
-func New(updater Updater, reader Reader) *API {
-	return &API{updater: updater, reader: reader}
+// New builds the API. feed and maxRefills are only used to describe the
+// two windows (GET /api/window).
+func New(updater Updater, reader Reader, feed LatestSource, maxRefills int) *API {
+	return &API{updater: updater, reader: reader, feed: feed, maxRefills: maxRefills}
 }
 
 // Register adds the routes to mux.
@@ -49,6 +54,7 @@ func New(updater Updater, reader Reader) *API {
 //	GET  /api/updates/{id}/problems    problems found by this update
 //	GET  /api/problems                 all problems (?open=true: only those needing attention)
 //	GET  /api/products                 the catalog (?status=active|withdrawn)
+//	GET  /api/window                   the two windows right now (D5)
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/updates", a.startUpdate)
 	mux.HandleFunc("POST /api/updates/{id}/resume", a.resumeUpdate)
@@ -58,6 +64,7 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/updates/{id}/problems", a.listUpdateProblems)
 	mux.HandleFunc("GET /api/problems", a.listProblems)
 	mux.HandleFunc("GET /api/products", a.listProducts)
+	mux.HandleFunc("GET /api/window", a.window)
 }
 
 func (a *API) startUpdate(w http.ResponseWriter, r *http.Request) {

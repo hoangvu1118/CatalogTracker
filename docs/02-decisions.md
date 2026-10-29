@@ -120,6 +120,8 @@ Details:
   window never has to be held in memory at once.
 - **Window 2 is not saved.** On resume we ask the supplier again for batches after the bookmark,
   and Window 2 rebuilds itself.
+- **Staff can see the windows.** The top of the staff page draws both windows live
+  (`GET /api/window`): the batch being saved is highlighted and leaves Window 2 when it is saved.
 
 ---
 

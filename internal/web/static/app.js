@@ -139,6 +139,158 @@ async function renderProducts() {
     || `<tr><td colspan="5" class="muted">The catalog is empty.</td></tr>`;
 }
 
+// --- Two-window panel --------------------------------------------------
+//
+// Window 1: batches still at the supplier.   Window 2: batches the running
+// update took and is saving one by one. Boxes are kept between refreshes
+// (keyed by batch number) so they can animate in and out.
+
+const MAX_BOXES = 40;
+
+function range(from, to) {
+  const out = [];
+  for (let s = from; s <= to; s++) out.push(s);
+  return out;
+}
+
+// boxKeys caps a long list: the first MAX_BOXES batches, then "+N".
+function boxKeys(seqs) {
+  if (seqs.length <= MAX_BOXES) return seqs.map(String);
+  return [...seqs.slice(0, MAX_BOXES).map(String), "more"];
+}
+
+// syncBoxes makes el show exactly `keys`, in order. Boxes no longer wanted
+// play a leaving animation chosen by leaveClass(key) before removal.
+function syncBoxes(el, keys, decorate, leaveClass) {
+  const want = new Set(keys);
+  for (const node of [...el.children]) {
+    if (!node.classList.contains("leaving") && !want.has(node.dataset.key)) {
+      node.classList.remove("processing", "new");
+      node.classList.add("leaving", leaveClass(node.dataset.key));
+      setTimeout(() => node.remove(), 750);
+    }
+  }
+  const live = () => [...el.children].filter((n) => !n.classList.contains("leaving"));
+  let prev = null;
+  for (const key of keys) {
+    let node = live().find((n) => n.dataset.key === key);
+    if (!node) {
+      node = document.createElement("div");
+      node.dataset.key = key;
+      node.className = "box new";
+      node.addEventListener("animationend", () => node.classList.remove("new"), { once: true });
+    }
+    decorate(node, key);
+    // Place it right after the previous live box; leaving boxes stay put.
+    let ref = prev ? prev.nextSibling : el.firstChild;
+    while (ref && ref.classList.contains("leaving")) ref = ref.nextSibling;
+    if (node !== ref) el.insertBefore(node, ref);
+    prev = node;
+  }
+}
+
+function setBox(node, key, label, extra) {
+  const text = key === "more" ? label : `#${key}`;
+  const html = text + (extra ? `<small>${esc(extra)}</small>` : "");
+  if (node.innerHTML !== html) node.innerHTML = html;
+}
+
+let lastBookmark = null;
+
+function renderWindow(w) {
+  const unfinished = w.status === "running" || w.status === "failed" || w.status === "interrupted";
+  const w2End = unfinished && w.target > w.bookmark ? w.target : w.bookmark;
+  const w2 = unfinished ? range(w.bookmark + 1, w2End) : [];
+  const w1 = w.supplier_error ? [] : range(Math.max(w2End, w.bookmark) + 1, w.supplier_latest);
+  const stoppedAt = (w.status === "failed" || w.status === "interrupted") && w2.length ? w2[0] : 0;
+
+  // Window 1
+  syncBoxes($("w1-boxes"), boxKeys(w1),
+    (node, key) => {
+      node.classList.toggle("more", key === "more");
+      setBox(node, key, `+${w1.length - MAX_BOXES}`);
+    },
+    () => "moved");
+  $("w1-info").textContent = w.supplier_error ? "supplier unreachable" : `${w1.length} batch${w1.length === 1 ? "" : "es"}`;
+
+  // Window 2
+  syncBoxes($("w2-boxes"), boxKeys(w2),
+    (node, key) => {
+      const seq = Number(key);
+      node.classList.toggle("more", key === "more");
+      node.classList.toggle("processing", seq === w.processing);
+      node.classList.toggle("blocked", seq === stoppedAt);
+      node.classList.toggle("interrupted", seq === stoppedAt && w.status === "interrupted");
+      const extra = seq === w.processing ? "saving…" : seq === stoppedAt ? "stopped" : "";
+      setBox(node, key, `+${w2.length - MAX_BOXES}`, extra);
+    },
+    (key) => (Number(key) <= w.bookmark ? "saved" : "gone"));
+  $("w2-info").textContent = unfinished
+    ? `${w2.length} left · refill ${w.refills} of ${w.max_refills}`
+    : "";
+
+  // Bookmark
+  const bm = $("bookmark");
+  bm.textContent = w.bookmark ? `#${w.bookmark}` : "—";
+  if (lastBookmark !== null && w.bookmark !== lastBookmark) {
+    bm.classList.remove("bump");
+    void bm.offsetWidth; // restart the animation
+    bm.classList.add("bump");
+  }
+  lastBookmark = w.bookmark;
+
+  // Plain-language explanation
+  const [text, tone] = explainWindow(w, w1, w2, stoppedAt);
+  const ex = $("w-explain");
+  ex.textContent = text;
+  ex.className = "explain " + tone;
+}
+
+function explainWindow(w, w1, w2, stoppedAt) {
+  if (w.status === "failed") {
+    return [`Stopped: the supplier failed while sending batch #${stoppedAt || w.bookmark + 1}. ` +
+      `Everything up to the bookmark #${w.bookmark} is saved. Resume continues from #${w.bookmark + 1}.`, "bad"];
+  }
+  if (w.status === "interrupted") {
+    return [`Interrupted: the application stopped during this update. ` +
+      `Batches up to #${w.bookmark} are saved; nothing half-saved was kept. Resume continues from #${w.bookmark + 1}.`, "warn"];
+  }
+  if (w.status === "running") {
+    if (w.processing) {
+      return [`Saving batch #${w.processing} (all its changes in one transaction). ` +
+        `When it is saved it leaves Window 2 and the bookmark moves to #${w.processing}.`, ""];
+    }
+    return [`Window 2 is empty: looking at Window 1 for batches that arrived meanwhile ` +
+      `(refill ${w.refills} of ${w.max_refills} used).`, ""];
+  }
+  if (w.supplier_error) {
+    return [`Cannot reach the supplier right now, so Window 1 is unknown. The catalog is unchanged.`, "warn"];
+  }
+  if (w1.length === 0) {
+    return [w.bookmark
+      ? `Up to date: the supplier has nothing after batch #${w.bookmark}. ` +
+        `Starting an update now reads no batches, so it shows 0 applied · 0 ignored. ` +
+        `“Re-import everything” reads from #1 again to show that nothing is duplicated.`
+      : `The supplier has not published any batches yet.`, "ok"];
+  }
+  const after = w.bookmark ? ` after the bookmark #${w.bookmark}` : "";
+  return [`${w1.length} new batch${w1.length === 1 ? " is" : "es are"} waiting at the supplier${after}. ` +
+    `Press “Start update” to move them into Window 2.`, ""];
+}
+
+let windowBusy = false;
+async function refreshWindow() {
+  if (windowBusy) return;
+  windowBusy = true;
+  try {
+    renderWindow(await api("/api/window"));
+  } catch (err) {
+    // The main refresh shows connection errors.
+  } finally {
+    windowBusy = false;
+  }
+}
+
 // --- Refresh loop ------------------------------------------------------
 
 async function refresh() {
@@ -169,6 +321,7 @@ async function start(fromBeginning) {
       : err.message);
   }
   refresh();
+  refreshWindow();
 }
 
 document.addEventListener("click", async (e) => {
@@ -186,6 +339,7 @@ document.addEventListener("click", async (e) => {
     state.productStatus = t.dataset.status;
   }
   refresh();
+  refreshWindow();
 });
 
 $("start").addEventListener("click", () => start(false));
@@ -194,4 +348,6 @@ $("reimport").addEventListener("click", () => {
 });
 
 refresh();
-setInterval(refresh, 1500);
+refreshWindow();
+setInterval(refresh, 1000);
+setInterval(refreshWindow, 300);

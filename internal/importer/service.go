@@ -16,6 +16,9 @@ type Config struct {
 	// MaxRefills is how many times Window 2 may be refilled after the first
 	// fill before the update completes (stop rule C, D5).
 	MaxRefills int
+	// BatchDelay pauses before each batch is saved. Only for demonstrations,
+	// so people can watch batches leave Window 2; 0 in normal use.
+	BatchDelay time.Duration
 }
 
 // DefaultConfig matches docs/02-decisions.md.
@@ -215,6 +218,10 @@ func (s *Service) processWindow(ctx context.Context, u *Update) error {
 				continue
 			}
 			inWindow++
+			// Demo pacing: the batch about to be saved is shown as "saving".
+			if err := pause(ctx, s.cfg.BatchDelay); err != nil {
+				return err
+			}
 			if err := s.applyBatch(ctx, u.ID, b); err != nil {
 				if !errors.Is(err, ErrBatchAlreadyApplied) {
 					return err
@@ -284,6 +291,19 @@ func (s *Service) stop(ctx context.Context, u *Update, cause error) error {
 		return fmt.Errorf("%v (and saving status failed: %w)", cause, err)
 	}
 	return cause
+}
+
+// pause waits for d, or returns early if ctx is cancelled.
+func pause(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // supplierError marks errors that came from the supplier, so they can be

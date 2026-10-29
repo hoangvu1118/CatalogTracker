@@ -26,6 +26,7 @@ func main() {
 	flag.DurationVar(&cfg.Supplier.Timeout, "supplier-timeout", 5*time.Second, "timeout per supplier request")
 	flag.IntVar(&cfg.Importer.PageSize, "page-size", defaults.PageSize, "batches requested from the supplier at once")
 	flag.IntVar(&cfg.Importer.MaxRefills, "max-refills", defaults.MaxRefills, "Window 2 refills before an update completes")
+	flag.DurationVar(&cfg.Importer.BatchDelay, "batch-delay", 0, "pause before saving each batch, for demonstrations (e.g. 900ms)")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))

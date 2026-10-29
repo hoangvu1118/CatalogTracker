@@ -59,6 +59,55 @@ tbody tr.clickable:hover, tbody tr.selected { background: var(--gray-bg); }
 .filters button { padding: 3px 10px; font-size: 12px; }
 .filters button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+/* Two-window panel */
+.win-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.4fr) auto 120px; gap: 10px; align-items: stretch; }
+.win { border: 2px dashed var(--border); border-radius: 10px; padding: 10px; min-height: 110px; min-width: 0; }
+.win.w2 { border-color: var(--accent); border-style: solid; }
+.win-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin-bottom: 8px; }
+.win-head span { color: var(--muted); font-size: 12px; }
+.win-info { margin-left: auto; font-weight: 600; }
+.win-arrow { align-self: center; font-size: 24px; color: var(--muted); }
+.boxes { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; min-height: 46px; }
+.boxes:empty::after { content: "empty"; color: var(--muted); font-size: 12px; align-self: center; }
+.box { position: relative; width: 52px; height: 42px; border-radius: 8px; border: 1px solid var(--border); background: var(--gray-bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;
+  transition: background .3s, border-color .3s, transform .3s; }
+.box small { font-size: 9px; font-weight: 500; line-height: 1; }
+.box.new { animation: box-in .45s ease-out; }
+.box.processing { background: var(--info-bg); border: 2px solid var(--accent); color: var(--info); transform: scale(1.12); animation: pulse 1s ease-in-out infinite; z-index: 1; }
+.box.blocked { background: var(--bad-bg); border: 2px solid var(--bad); color: var(--bad); }
+.box.blocked.interrupted { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.box.leaving { pointer-events: none; }
+.box.leaving.saved { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); animation: box-saved .7s ease-in forwards; }
+.box.leaving.moved { animation: box-moved .5s ease-in forwards; }
+.box.leaving.gone { animation: box-moved .3s ease-in forwards; }
+.box.more { width: auto; padding: 0 8px; color: var(--muted); background: transparent; border-style: dashed; }
+.box.mini { display: inline-block; width: 14px; height: 12px; border-radius: 3px; vertical-align: -1px; transform: none; animation: none; }
+.box.saved-demo { background: var(--ok-bg); border-color: var(--ok); }
+.bookmark { font-size: 30px; font-weight: 700; text-align: center; padding-top: 6px; color: var(--ok); }
+.bookmark.bump { animation: bump .5s ease-out; }
+.explain { margin: 12px 0 6px; padding: 8px 12px; border-radius: 8px; background: var(--gray-bg); }
+.explain.bad { background: var(--bad-bg); color: var(--bad); }
+.explain.warn { background: var(--warn-bg); color: var(--warn); }
+.explain.ok { background: var(--ok-bg); color: var(--ok); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 12px; }
+@keyframes box-in { from { opacity: 0; transform: translateX(-24px) scale(.8); } to { opacity: 1; transform: none; } }
+@keyframes box-saved {
+  0% { transform: scale(1.12); }
+  40% { transform: scale(1.12); opacity: 1; }
+  100% { transform: translateX(60px) scale(.6); opacity: 0; width: 0; margin-right: -6px; border-width: 0; }
+}
+@keyframes box-moved { to { transform: translateX(40px); opacity: 0; width: 0; margin-right: -6px; border-width: 0; } }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent); } }
+@keyframes bump { 40% { transform: scale(1.25); } }
+@media (prefers-reduced-motion: reduce) {
+  .box, .box.new, .box.processing, .box.leaving.saved, .box.leaving.moved, .bookmark.bump { animation-duration: .01s; transition: none; }
+}
+@media (max-width: 900px) {
+  .win-row { grid-template-columns: 1fr; }
+  .win-arrow { transform: rotate(90deg); justify-self: center; }
+}
+
 @media (max-width: 600px) {
   header, main { padding-left: 16px; padding-right: 16px; }
   main { grid-template-columns: 1fr; }

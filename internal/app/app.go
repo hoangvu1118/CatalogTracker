@@ -35,6 +35,9 @@ type App struct {
 	pool    *pgxpool.Pool
 	Store   *storage.Store
 	Service *importer.Service
+	// latest asks the supplier for its newest batch for the window view,
+	// with one quick attempt so the page never waits on retries.
+	latest *supplier.Client
 }
 
 // New connects to the database, applies migrations, wires the parts
@@ -57,7 +60,8 @@ func New(ctx context.Context, cfg Config, log *slog.Logger) (*App, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &App{cfg: cfg, log: log, pool: pool, Store: store, Service: service}, nil
+	latest := supplier.NewClient(supplier.ClientConfig{BaseURL: cfg.Supplier.BaseURL, Timeout: 2 * time.Second, Attempts: 1})
+	return &App{cfg: cfg, log: log, pool: pool, Store: store, Service: service, latest: latest}, nil
 }
 
 // Handler returns the application's HTTP routes.
@@ -70,7 +74,7 @@ func (a *App) Handler() http.Handler {
 		}
 		w.Write([]byte("ok"))
 	})
-	httpapi.New(a.Service, a.Store).Register(mux)
+	httpapi.New(a.Service, a.Store, a.latest, a.cfg.Importer.MaxRefills).Register(mux)
 	web.Register(mux)
 	return mux
 }

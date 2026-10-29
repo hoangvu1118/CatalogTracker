@@ -16,9 +16,11 @@ import (
 
 // stub implements Updater and Reader with fixed data.
 type stub struct {
-	updates  map[int64]importer.Update
-	startErr error
-	started  []bool // from_beginning of each Start call
+	updates   map[int64]importer.Update
+	startErr  error
+	started   []bool // from_beginning of each Start call
+	latest    int64  // supplier's newest batch
+	latestErr error
 }
 
 func newStub() *stub {
@@ -56,8 +58,24 @@ func (s *stub) GetUpdate(_ context.Context, id int64) (importer.Update, error) {
 	return u, nil
 }
 
-func (s *stub) ListUpdates(context.Context, int) ([]importer.Update, error) {
-	return []importer.Update{s.updates[2], s.updates[1]}, nil
+func (s *stub) ListUpdates(_ context.Context, limit int) ([]importer.Update, error) {
+	var out []importer.Update
+	for id := int64(len(s.updates)); id >= 1 && len(out) < limit; id-- {
+		out = append(out, s.updates[id])
+	}
+	return out, nil
+}
+
+func (s *stub) LastBookmark(context.Context) (int64, error) {
+	var b int64
+	for _, u := range s.updates {
+		b = max(b, u.Bookmark)
+	}
+	return b, nil
+}
+
+func (s *stub) Latest(context.Context) (int64, error) {
+	return s.latest, s.latestErr
 }
 
 func (s *stub) UnfinishedUpdate(context.Context) (importer.Update, bool, error) {
@@ -117,7 +135,7 @@ func (s *stub) ListProducts(_ context.Context, status catalog.Status) ([]catalog
 func call(t *testing.T, s *stub, method, path, body string, out any) int {
 	t.Helper()
 	mux := http.NewServeMux()
-	New(s, s).Register(mux)
+	New(s, s, s, 3).Register(mux)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	mux.ServeHTTP(rec, req)
@@ -224,5 +242,60 @@ func TestListEndpoints(t *testing.T) {
 	}
 	if code := call(t, s, "GET", "/api/products?status=gone", "", nil); code != http.StatusBadRequest {
 		t.Errorf("bad status filter: code %d", code)
+	}
+}
+
+func TestWindowWhileRunning(t *testing.T) {
+	s := newStub()
+	s.updates[2] = importer.Update{ID: 2, Status: importer.StatusRunning, Bookmark: 3, Target: 8, Refills: 1}
+	s.latest = 11
+
+	var w windowJSON
+	call(t, s, "GET", "/api/window", "", &w)
+
+	// Window 2 = batches 4–8 with 4 being saved; Window 1 = batches 9–11.
+	want := windowJSON{UpdateID: 2, Status: "running", Bookmark: 3, Target: 8, Processing: 4,
+		Refills: 1, MaxRefills: 3, SupplierLatest: 11}
+	if w != want {
+		t.Errorf("got %+v, want %+v", w, want)
+	}
+}
+
+func TestWindowWhenFailedKeepsWindowTwo(t *testing.T) {
+	s := newStub()
+	s.latest = 8
+
+	var w windowJSON
+	call(t, s, "GET", "/api/window", "", &w)
+
+	if w.Status != "failed" || w.Bookmark != 3 || w.Target != 8 || w.Processing != 0 {
+		t.Errorf("got %+v: failed update keeps batches 4–8 waiting, none being saved", w)
+	}
+}
+
+func TestWindowWhenUpToDate(t *testing.T) {
+	s := newStub()
+	delete(s.updates, 2)
+	s.latest = 8
+
+	var w windowJSON
+	call(t, s, "GET", "/api/window", "", &w)
+
+	if w.Status != "completed" || w.Bookmark != 8 || w.Target != 0 || w.SupplierLatest != 8 {
+		t.Errorf("got %+v: both windows should be empty", w)
+	}
+}
+
+func TestWindowWhenSupplierIsDown(t *testing.T) {
+	s := newStub()
+	s.updates = map[int64]importer.Update{}
+	s.latestErr = fmt.Errorf("503")
+
+	var w windowJSON
+	if code := call(t, s, "GET", "/api/window", "", &w); code != http.StatusOK {
+		t.Fatalf("code %d: the page must still get an answer", code)
+	}
+	if w.Status != "idle" || w.SupplierError == "" {
+		t.Errorf("got %+v", w)
 	}
 }

@@ -13,7 +13,11 @@ makes sure that:
 - an interrupted update resumes where it stopped, without redoing or losing finished batches;
 - an update is reported as **completed** only when it really is.
 
-![Failed update with Resume button](docs/screenshots/failed-update.png)
+![Batches moving from Window 1 to Window 2 and being saved one by one](docs/screenshots/two-windows.gif)
+
+*The top of the staff page during an update (`make run-demo`): batches wait in Window 1, move into
+Window 2, the one being saved is highlighted, and each saved batch leaves while the bookmark
+moves. Batches #6–#8 arrive during the update and are taken by a refill.*
 
 ## Documentation
 
@@ -55,6 +59,10 @@ make run        # the application on :8080
 
 Open <http://localhost:8080> and press **Start update**.
 
+To *watch* the windows, use `make run-demo` instead of `make run`: it pauses 0.9 s before saving
+each batch, so you can follow each one through Window 2. Without it, saving a batch takes
+milliseconds.
+
 Without `make` (e.g. on Windows):
 
 ```sh
@@ -74,6 +82,7 @@ go run ./cmd/catalog
 | `-supplier-timeout` | | `5s` per request |
 | `-page-size` | | `5` batches per supplier request |
 | `-max-refills` | | `3` Window 2 refills before an update completes |
+| `-batch-delay` | | `0`; pause before saving each batch, for demonstrations (`make run-demo` uses `900ms`) |
 
 ### Fictional supplier options
 
@@ -113,6 +122,7 @@ curl localhost:9090/admin/state
 | `GET /api/updates/{id}/problems` | problems found by the update |
 | `GET /api/problems?open=true` | everything that still needs attention |
 | `GET /api/products?status=withdrawn` | the catalog |
+| `GET /api/window` | the two windows right now: bookmark, end of Window 2, batch being saved, supplier's newest batch |
 
 ## Running the tests
 
@@ -161,10 +171,14 @@ allowed to overwrite newer ones), 9 of the 10 scenarios fail.
 
 Start with an empty database: `make db-reset`.
 
-1. **Outage in the middle (R4, R6).** With `make supplier` and `make run` running:
+Use `make supplier` and `make run-demo`, so batches move slowly enough to follow in the
+two-window panel at the top of the page.
+
+1. **Outage in the middle (R4, R6).** With both running:
    `curl -X POST 'localhost:9090/admin/outage?from=5'`, then press **Start update**.
-   The update stops as **Failed** after 4 batches. The catalog keeps what was saved, the page
-   says "next: batch 5 of 8", and *Needs attention* shows "Supplier unavailable".
+   Batches #1–#4 leave Window 2 one by one, then box **#5 turns red ("stopped")**: the update is
+   **Failed**, the bookmark stays at #4, the catalog keeps what was saved, and *Needs attention*
+   shows "Supplier unavailable".
 2. **Resume (R5).** `curl -X POST 'localhost:9090/admin/outage?on=false'`, then press **Resume**.
    The update continues at batch 5 and becomes **Completed**. Point out:
    - `stale`: Blue Mug v2 and Red Lamp v1 arrived late and were ignored (R2, R3);
@@ -173,8 +187,10 @@ Start with an empty database: `make db-reset`.
    - Steel Kettle: withdrawn before the shop ever saw it, and the late older message was ignored;
    - problems: the outage and Glass Vase v2 are **resolved**; the record without SKU and Bamboo
      Tray (`eur`) still need attention.
-3. **Import again (R1).** Press **Re-import everything**: every change is `duplicate` or
-   `stale`, and the catalog is unchanged.
+3. **Nothing new, and import again (R1).** Press **Start update**: the windows are empty, so it
+   reads no batches ("0 applied · 0 ignored"); the panel says the shop is up to date. Then press
+   **Re-import everything**: batches #1–#8 go through Window 2 again, every change is `duplicate`
+   or `stale`, and the catalog is unchanged.
 4. **Crash and restart (R5, R6).** Stop the supplier and run `make supplier-big` (a large, messy
    generated feed). Because this is a different feed, press **Re-import everything** (a normal
    update would continue from the old feed's bookmark). While it runs, press Ctrl+C in the
