@@ -25,6 +25,7 @@ moves. Batches #6–#8 arrive during the update and are taken by a refill.*
 2. [Decisions: how each problem is solved](docs/02-decisions.md): D1–D8 and assumptions
 3. [Implementation plan](docs/03-plan.md): structure, SOLID, milestones
 4. [Code tour](docs/04-code-tour.md): reading order and how to make common changes
+5. [Using the fictional supplier](docs/05-fake-supplier.md): controls, recipes for every scenario, troubleshooting
 5. [Demo feeds](testdata/feeds/README.md): the fictional supplier's data
 
 ## How it works, in short
@@ -85,6 +86,8 @@ go run ./cmd/catalog
 | `-batch-delay` | | `0`; pause before saving each batch, for demonstrations (`make run-demo` uses `900ms`) |
 
 ### Fictional supplier options
+
+Step-by-step guide with recipes: [docs/05-fake-supplier.md](docs/05-fake-supplier.md).
 
 ```sh
 go run ./cmd/fakesupplier -help
